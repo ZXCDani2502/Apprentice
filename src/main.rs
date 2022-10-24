@@ -1,21 +1,24 @@
 use crate::scanner::{Scanner, Token};
-use std::fs;
+use std::{fmt::format, fs};
 
 mod scanner;
 
 fn main() {
-    run_file(String::from("test"));
-}
-
-fn run_file(path: String) {
-    // -- some logic --
-    run(path);
+    run(String::from("test"));
 }
 
 fn run(source: String) {
     //temporary way of creating the scanner
-    let mut scanner: Scanner = Scanner::default();
-    let tokens: Vec<Token> = scanner.scan_tokens(source);
+    let code =
+        fs::read_to_string(format!("src/{}.aprn", source)).expect("should be able to read file");
+    let result = scanner::scan(code);
+
+    let mut tokens: Vec<Token> = Vec::new();
+    if let Err(e) = result {
+        error(e.line, e.column, e.message.as_str());
+    } else {
+        tokens = result.unwrap();
+    }
 
     // for now just print the tokens
     for token in tokens {
@@ -28,6 +31,6 @@ fn error(line: usize, column: i64, message: &str) {
 }
 
 fn report(line: usize, column: i64, place: &str, message: &str) {
-    panic!("[line {line}] Error {place}: {message}");
+    panic!("[line {line}, column {column}] Error {place}: {message}");
     //had_error = true;
 }

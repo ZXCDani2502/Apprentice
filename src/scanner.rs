@@ -75,7 +75,7 @@ impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Token {{ type: {:?}, lexeme: \"{}\", literal: {:?}, line: {:?}, col: {:?}}}",
+            "Token {{type: {:?}, lexeme: \"{}\", literal: {:?}, line: {:?}, col: {:?}}}",
             self.token_type,
             String::from_utf8(self.lexeme.clone()).unwrap(),
             self.literal,
@@ -88,13 +88,12 @@ impl fmt::Debug for Token {
 #[derive(Debug)]
 pub struct Error {
     //error handling is done in main if the error value in the scanner is Some and not None
-    pub what: String,
+    pub message: String,
     pub line: usize,
     pub column: i64,
 }
 
 //the function that main calls which creates the scanner
-#[allow(unused)]
 pub fn scan(input: String) -> Result<Vec<Token>, Error> {
     let mut scanner: Scanner = Default::default();
     scanner.scan_tokens(input);
@@ -251,7 +250,7 @@ impl Scanner {
                     self.identifier();
                 } else {
                     self.err = Some(Error {
-                        what: format!("Invalid character found: {c}"),
+                        message: format!("Invalid character found: {c}"),
                         line: self.line,
                         column: self.column,
                     })
@@ -305,7 +304,7 @@ impl Scanner {
         }
         if self.is_at_end() {
             self.err = Some(Error {
-                what: "String needs to be closed".to_string(),
+                message: "String needs to be closed".to_string(),
                 line: self.line,
                 column: self.column,
             })
