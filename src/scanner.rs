@@ -1,8 +1,7 @@
-use core::panic;
 use std::collections::HashMap;
 use std::fmt;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum TokenType {
     // Single-character tokens.
     LeftParen,
@@ -248,6 +247,8 @@ impl Scanner {
             _ => {
                 if c.is_ascii_digit() {
                     self.number();
+                } else if c.is_ascii_alphabetic() || c == '_' {
+                    self.identifier();
                 } else {
                     self.err = Some(Error {
                         what: format!("Invalid character found: {c}"),
@@ -353,6 +354,27 @@ impl Scanner {
                 .parse()
                 .unwrap();
             self.add_token_literal(TokenType::Int, Some(Literal::Int(val)))
+        }
+    }
+
+    //handles keywords and identifiers
+    fn identifier(&mut self) {
+        while self.peek().is_ascii_alphanumeric() {
+            self.advance();
+        }
+
+        let val = String::from_utf8(self.source[self.start..self.current].to_vec()).unwrap();
+
+        let token_type = match self.keywords.get(&val) {
+            Some(kw_token_type) => *kw_token_type,
+            None => TokenType::Identifier,
+        };
+
+        match token_type {
+            TokenType::Identifier => {
+                self.add_token_literal(TokenType::Identifier, Some(Literal::Identifier(val)))
+            }
+            _ => self.add_token(token_type),
         }
     }
 
