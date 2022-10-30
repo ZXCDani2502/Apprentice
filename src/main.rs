@@ -1,5 +1,5 @@
-use crate::scanner::{Scanner, Token};
-use std::{fmt::format, fs};
+use crate::scanner::Token;
+use std::fs;
 
 mod scanner;
 
@@ -9,8 +9,7 @@ fn main() {
 
 fn run(source: String) {
     //temporary way of creating the scanner
-    let code =
-        fs::read_to_string(format!("src/{}.aprn", source)).expect("should be able to read file");
+    let code = fs::read_to_string(format!("src/{}.aprn", source)).expect("can't read file");
     let result = scanner::scan(code);
 
     let mut tokens: Vec<Token> = Vec::new();
