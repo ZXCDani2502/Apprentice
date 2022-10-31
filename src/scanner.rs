@@ -31,8 +31,7 @@ pub enum TokenType {
     // Literals.
     Identifier,
     String,
-    Int,
-    Float,
+    Number,
 
     // Keywords.
     And,
@@ -58,8 +57,7 @@ pub enum TokenType {
 pub enum Literal {
     Identifier(String),
     Str(String),
-    Int(u64),
-    Float(f64),
+    Num(u64),
 }
 
 #[derive(Clone)]
@@ -326,34 +324,24 @@ impl Scanner {
 
     //handles numbers
     fn number(&mut self) {
-        let mut int = true;
-
         while self.peek().is_ascii_digit() {
             self.advance();
         }
 
         if self.peek() == '.' && self.peek_next().is_ascii_digit() {
-            int = false;
             self.advance(); //consume the "."
 
+            //rest of the digits after the decimal point
             while self.peek().is_ascii_digit() {
                 self.advance();
             }
-
-            let val: f64 = String::from_utf8(self.source[self.start..self.current].to_vec())
-                .unwrap()
-                .parse()
-                .unwrap();
-            self.add_token_literal(TokenType::Float, Some(Literal::Float(val)))
         }
 
-        if int {
-            let val: u64 = String::from_utf8(self.source[self.start..self.current].to_vec())
-                .unwrap()
-                .parse()
-                .unwrap();
-            self.add_token_literal(TokenType::Int, Some(Literal::Int(val)))
-        }
+        let val: u64 = String::from_utf8(self.source[self.start..self.current].to_vec())
+            .unwrap()
+            .parse()
+            .unwrap();
+        self.add_token_literal(TokenType::Number, Some(Literal::Num(val)))
     }
 
     //handles keywords and identifiers
