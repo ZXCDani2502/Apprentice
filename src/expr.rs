@@ -15,19 +15,19 @@ pub struct SourceLocation {
 
 #[derive(Debug, Copy, Clone)]
 pub struct UnaryOp {
-    pub u_type: UnaryOpTy,
+    pub u_type: UnaryOpType,
     pub line: usize,
-    pub col: i64,
+    pub column: i64,
 }
 
 #[derive(Debug, Copy, Clone)]
-pub enum UnaryOpTy {
+pub enum UnaryOpType {
     Minus,
     Bang,
 }
 
 #[derive(Debug, Copy, Clone)]
-struct BinOp {
+pub struct BinOp {
     b_type: BinOpType,
     line: usize,
     column: i64,
@@ -41,10 +41,10 @@ pub enum BinOpType {
     LessEqual,
     Greater,
     GreaterEqual,
-    Plus,
-    Minus,
-    Star,
-    Slash,
+    Add,
+    Sub,
+    Mult,
+    Div,
 }
 
 #[derive(Debug, Clone)]

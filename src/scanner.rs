@@ -256,7 +256,7 @@ impl Scanner {
             }
         }
 
-        let val: u64 = String::from_utf8(self.source[self.start..self.current].to_vec())
+        let val: f64 = String::from_utf8(self.source[self.start..self.current].to_vec())
             .unwrap()
             .parse()
             .unwrap();

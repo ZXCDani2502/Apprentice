@@ -32,6 +32,19 @@ fn error(line: usize, column: i64, message: &str) {
     report(line, column, "", message);
 }
 
+fn t_error(token: Token, message: &str) {
+    if (token.token_type == token::TokenType::Eof) {
+        report(token.line, token.column, " at end", message);
+    } else {
+        report(
+            token.line,
+            token.column,
+            format!(" at '{}'", String::from_utf8(token.lexeme).unwrap()).as_str(),
+            message,
+        );
+    }
+}
+
 fn report(line: usize, column: i64, place: &str, message: &str) {
     panic!("[line {line}, column {column}] Error {place}: {message}");
     //had_error = true;
