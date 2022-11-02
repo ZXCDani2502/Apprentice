@@ -1,7 +1,10 @@
-use crate::scanner::Token;
+use crate::token::Token;
 use std::fs;
 
+mod expr;
+mod parser;
 mod scanner;
+mod token;
 
 fn main() {
     run(String::from("test"));

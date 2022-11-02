@@ -1,14 +1,11 @@
+#[derive(Debug, Clone)]
 pub enum Expr {
     This(SourceLocation),
     Literal(Literal),
-    Unary(UniOp, Box<Expr>),
+    Unary(UnaryOp, Box<Expr>),
     Binary(Box<Expr>, BinOp, Box<Expr>),
     Grouping(Box<Expr>),
 }
-
-/*
-REGION: Expressions
-*/
 
 #[derive(Debug, Clone, Copy)]
 pub struct SourceLocation {
