@@ -3,10 +3,12 @@ use crate::utils::*;
 use std::fs;
 
 mod expr;
+mod interpreter;
 mod parser;
 mod scanner;
 mod token;
 pub mod utils;
+mod value;
 
 fn main() {
     run(String::from("test"));
