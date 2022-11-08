@@ -14,7 +14,7 @@ fn main() {
 
 fn run(source: String) {
     //temporary way of creating the scanner
-    let code = fs::read_to_string(format!("src/{}.aprn", source)).expect("can't read file");
+    let code = fs::read_to_string(format!("src/tests/{}.aprn", source)).expect("can't read file");
     let result = scanner::scan(code);
 
     let mut tokens: Vec<Token> = Vec::new();

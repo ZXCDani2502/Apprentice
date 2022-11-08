@@ -1,0 +1,3 @@
+func main() {
+    var p = 30;
+}
