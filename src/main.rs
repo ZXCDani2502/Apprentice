@@ -1,10 +1,12 @@
 use crate::token::Token;
+use crate::utils::*;
 use std::fs;
 
 mod expr;
 mod parser;
 mod scanner;
 mod token;
+pub mod utils;
 
 fn main() {
     run(String::from("test"));
@@ -22,9 +24,13 @@ fn run(source: String) {
         tokens = result.unwrap();
     }
 
-    // for now just print the tokens
-    for token in tokens {
-        println!("{token:?}");
+    print_token::pr(&tokens);
+
+    let expr_or_err = parser::parse(tokens);
+
+    match expr_or_err {
+        Ok(expr) => print_ast::pr(expr.clone()),
+        Err(err) => println!("{err:?}"),
     }
 }
 
@@ -32,20 +38,20 @@ fn error(line: usize, column: i64, message: &str) {
     report(line, column, "", message);
 }
 
-fn t_error(token: Token, message: &str) {
-    if (token.token_type == token::TokenType::Eof) {
-        report(token.line, token.column, " at end", message);
-    } else {
-        report(
-            token.line,
-            token.column,
-            format!(" at '{}'", String::from_utf8(token.lexeme).unwrap()).as_str(),
-            message,
-        );
-    }
-}
+// fn t_error(token: Token, message: &str) {
+//     if token.token_type == token::TokenType::Eof {
+//         report(token.line, token.column, " at end", message);
+//     } else {
+//         report(
+//             token.line,
+//             token.column,
+//             format!(" at '{}'", String::from_utf8(token.lexeme).unwrap()).as_str(),
+//             message,
+//         );
+//     }
+// }
 
 fn report(line: usize, column: i64, place: &str, message: &str) {
-    panic!("[line {line}, column {column}] Error {place}: {message}");
+    panic!("[line: {line}, column: {column}] Error {place}: {message}");
     //had_error = true;
 }

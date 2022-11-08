@@ -1,28 +1,91 @@
-use crate::expr;
-use crate::token;
+use std::fmt;
+
+use crate::expr::{self, Expr, Literal};
+use crate::token::{self, Token, TokenType};
 
 #[derive(Default)]
 struct Parser {
-    tokens: Vec<token::Token>,
+    tokens: Vec<Token>,
     current: usize,
 }
 
 pub enum Error {
+    UnexpectedToken(Token),
+    TokenMismatch {
+        expected: TokenType,
+        found: Token,
+        maybe_err: Option<String>,
+    },
     InvalidTokenInBinaryOp {
-        token_type: token::TokenType,
+        token_type: TokenType,
         line: usize,
         column: i64,
     },
     InvalidTokenInUnaryOp {
-        token_type: token::TokenType,
+        token_type: TokenType,
         line: usize,
         column: i64,
     },
-    TokenMismatch {
-        expected: token::TokenType,
-        found: token::Token,
-        maybe_err: Option<String>,
+    ExpectedExpression {
+        // an expression token was expected
+        token_type: TokenType,
+        line: usize,
+        column: i64,
     },
+}
+
+impl fmt::Debug for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self {
+            Error::UnexpectedToken(token) => write!(
+                f,
+                "[line: {}, Column: {}] Unexpected token {:?} found for this place",
+                token.line, token.column, token
+            ),
+            Error::TokenMismatch {
+                expected,
+                found,
+                maybe_err,
+            } => {
+                write!(
+                    f,
+                    "[line: {}, Column: {}] Expected token {:?} but found {:?}",
+                    found.line, found.column, expected, found.token_type,
+                )?;
+                if let Some(maybe_err) = maybe_err {
+                    write!(f, ": {}", maybe_err)?;
+                }
+                fmt::Result::Ok(())
+            }
+            Error::InvalidTokenInBinaryOp {
+                token_type,
+                line,
+                column,
+            } => write!(
+                f,
+                "[line: {}, Column: {}] Invalid Binary Operator: {:?}",
+                line, column, token_type
+            ),
+            Error::InvalidTokenInUnaryOp {
+                token_type,
+                line,
+                column,
+            } => write!(
+                f,
+                "[line: {}, Column: {}] Invalid Unary Operator: {:?}",
+                line, column, token_type
+            ),
+            Error::ExpectedExpression {
+                token_type,
+                line,
+                column,
+            } => write!(
+                f,
+                "[line: {}, Column: {}] Expected Expression, found {:?}",
+                line, column, token_type,
+            ),
+        }
+    }
 }
 
 /*
@@ -41,27 +104,57 @@ primary        = NUMBER | STRING | "true" | "false" | "null"
 
 */
 
+// function that allows external usage of the parser
+pub fn parse(tokens: Vec<Token>) -> Result<Expr, Error> {
+    let mut p = Parser {
+        tokens,
+        ..Default::default()
+    };
+    let parse_result = p.parse();
+
+    match parse_result {
+        Ok(result) => {
+            // should be the end of the file, if it isn't the parser got stuck
+            if !p.is_at_end() {
+                let token = &p.tokens[p.current];
+                Err(Error::UnexpectedToken(token.clone()))
+            } else {
+                Ok(result)
+            }
+        }
+        Err(err) => Err(err),
+    }
+}
+
 impl Parser {
-    pub fn expression(&mut self) -> expr::Expr {
-        equality()
+    pub fn parse(&mut self) -> Result<Expr, Error> {
+        // let ex = self.expression();
+        // if ex.is_ok() {
+        //     return ex;
+        // } else {
+        //     ex
+        // }
+        // that's the same as
+        self.expression()
     }
 
-    pub fn equality(&mut self) -> Result<expr::Expr, Error> {
-        let mut expr: expr::Expr = self.comparison()?;
+    pub fn expression(&mut self) -> Result<Expr, Error> {
+        self.equality()
+    }
 
-        while self.match_one_of(vec![
-            token::TokenType::EqualEqual,
-            token::TokenType::BangEqual,
-        ]) {
-            let operator: token::Token = self.previous().clone();
+    pub fn equality(&mut self) -> Result<Expr, Error> {
+        let mut expr: Expr = self.comparison()?;
+
+        while self.match_one_of(vec![TokenType::EqualEqual, TokenType::BangEqual]) {
+            let operator: Token = self.previous().clone();
             let right = Box::new(self.comparison()?);
 
-            let binop_maybe = Parser::op_token_to_binOp(&operator);
+            let binop_maybe = Parser::op_token_to_binop(&operator);
 
             match binop_maybe {
                 Ok(binop) => {
                     let left = Box::new(expr);
-                    expr = expr::Expr::Binary(left, binop, right);
+                    expr = Expr::Binary(left, binop, right);
                 }
                 Err(e) => return Err(e),
             }
@@ -69,24 +162,24 @@ impl Parser {
         Ok(expr)
     }
 
-    pub fn comparison(&mut self) -> Result<expr::Expr, Error> {
-        let mut expr: expr::Expr = self.term()?;
+    pub fn comparison(&mut self) -> Result<Expr, Error> {
+        let mut expr: Expr = self.term()?;
 
         while self.match_one_of(vec![
-            token::TokenType::Less,
-            token::TokenType::LessEqual,
-            token::TokenType::Greater,
-            token::TokenType::GreaterEqual,
+            TokenType::Less,
+            TokenType::LessEqual,
+            TokenType::Greater,
+            TokenType::GreaterEqual,
         ]) {
-            let operator: token::Token = self.previous().clone();
+            let operator: Token = self.previous().clone();
             let right = Box::new(self.term()?);
 
-            let binop_maybe = Parser::op_token_to_binOp(&operator);
+            let binop_maybe = Parser::op_token_to_binop(&operator);
 
             match binop_maybe {
                 Ok(binop) => {
                     let left = Box::new(expr);
-                    expr = expr::Expr::Binary(left, binop, right);
+                    expr = Expr::Binary(left, binop, right);
                 }
                 Err(e) => return Err(e),
             }
@@ -94,19 +187,19 @@ impl Parser {
         Ok(expr)
     }
 
-    pub fn term(&mut self) -> Result<expr::Expr, Error> {
-        let mut expr: expr::Expr = self.factor()?;
+    pub fn term(&mut self) -> Result<Expr, Error> {
+        let mut expr: Expr = self.factor()?;
 
-        while self.match_one_of(vec![token::TokenType::Plus, token::TokenType::Minus]) {
-            let operator: token::Token = self.previous().clone();
+        while self.match_one_of(vec![TokenType::Plus, TokenType::Minus]) {
+            let operator: Token = self.previous().clone();
             let right = Box::new(self.factor()?);
 
-            let binop_maybe = Parser::op_token_to_binOp(&operator);
+            let binop_maybe = Parser::op_token_to_binop(&operator);
 
             match binop_maybe {
                 Ok(binop) => {
                     let left = Box::new(expr);
-                    expr = expr::Expr::Binary(left, binop, right);
+                    expr = Expr::Binary(left, binop, right);
                 }
                 Err(e) => return Err(e),
             }
@@ -114,19 +207,19 @@ impl Parser {
         Ok(expr)
     }
 
-    pub fn factor(&mut self) -> Result<expr::Expr, Error> {
-        let mut expr: expr::Expr = self.unary()?;
+    pub fn factor(&mut self) -> Result<Expr, Error> {
+        let mut expr: Expr = self.unary()?;
 
-        while self.match_one_of(vec![token::TokenType::Star, token::TokenType::Slash]) {
-            let operator: token::Token = self.previous().clone();
+        while self.match_one_of(vec![TokenType::Star, TokenType::Slash]) {
+            let operator: Token = self.previous().clone();
             let right = Box::new(self.unary()?);
 
-            let binop_maybe = Parser::op_token_to_binOp(&operator);
+            let binop_maybe = Parser::op_token_to_binop(&operator);
 
             match binop_maybe {
                 Ok(binop) => {
                     let left = Box::new(expr);
-                    expr = expr::Expr::Binary(left, binop, right);
+                    expr = Expr::Binary(left, binop, right);
                 }
                 Err(e) => return Err(e),
             }
@@ -134,39 +227,37 @@ impl Parser {
         Ok(expr)
     }
 
-    pub fn unary(&mut self) -> Result<expr::Expr, Error> {
-        while self.match_one_of(vec![token::TokenType::Minus, token::TokenType::Bang]) {
-            let operator: token::Token = self.previous().clone();
+    pub fn unary(&mut self) -> Result<Expr, Error> {
+        while self.match_one_of(vec![TokenType::Minus, TokenType::Bang]) {
+            let operator: Token = self.previous().clone();
             let right = Box::new(self.unary()?); // might change to not allow -- or !!
 
-            let uniop_maybe = Parser::op_token_to_uniOp(&operator);
+            let uniop_maybe = Parser::op_token_to_uniop(&operator);
 
             match uniop_maybe {
                 Ok(uniop) => {
-                    let expr = expr::Expr::Unary(uniop, right);
+                    let expr = Expr::Unary(uniop, right);
                     return Ok(expr);
                 }
                 Err(e) => return Err(e),
             }
         }
-        primary()
+        self.primary()
     }
 
-    pub fn primary(&mut self) -> Result<expr::Expr, Error> {
-        if self.matches(token::TokenType::False) {
-            return Ok(expr::Expr::Literal(expr::Literal::False));
+    pub fn primary(&mut self) -> Result<Expr, Error> {
+        if self.matches(TokenType::False) {
+            return Ok(Expr::Literal(Literal::False));
         }
-        if self.matches(token::TokenType::True) {
-            return Ok(expr::Expr::Literal(expr::Literal::True));
+        if self.matches(TokenType::True) {
+            return Ok(Expr::Literal(Literal::True));
         }
-        if self.matches(token::TokenType::Null) {
-            return Ok(expr::Expr::Literal(expr::Literal::Null));
+        if self.matches(TokenType::Null) {
+            return Ok(Expr::Literal(Literal::Null));
         }
-        if self.matches(token::TokenType::Number) {
+        if self.matches(TokenType::Number) {
             match &self.previous().literal {
-                Some(token::Literal::Num(n)) => {
-                    return Ok(expr::Expr::Literal(expr::Literal::Number(*n)))
-                }
+                Some(token::Literal::Num(n)) => return Ok(Expr::Literal(Literal::Number(*n))),
                 Some(l) => panic!(
                     "internal error in parser: when parsing number, found literal {:?}",
                     l
@@ -174,10 +265,10 @@ impl Parser {
                 None => panic!("internal error in parser: when parsing number, found no literal"),
             }
         }
-        if self.matches(token::TokenType::String) {
+        if self.matches(TokenType::String) {
             match &self.previous().literal {
                 Some(token::Literal::Str(s)) => {
-                    return Ok(expr::Expr::Literal(expr::Literal::String(*s)))
+                    return Ok(Expr::Literal(Literal::String(s.clone())))
                 }
                 Some(l) => panic!(
                     "parser internal error: when parsing string, found literal {:?}",
@@ -186,66 +277,99 @@ impl Parser {
                 None => panic!("parser internal error: when parsing string, found no literal"),
             }
         }
-        if self.matches(token::TokenType::LeftParen) {
-            let mut expr = self.expression();
-            self.consume(
-                token::TokenType::RightParen,
-                "Expected ')' after expression",
-            );
-            return Ok(expr::Expr::Grouping(Box::new(expr)));
+        if self.matches(TokenType::LeftParen) {
+            let expr = self.expression()?;
+            self.consume(TokenType::RightParen, "Expected ')' after expression")?;
+            return Ok(Expr::Grouping(Box::new(expr)));
+        }
+        Err(Error::ExpectedExpression {
+            token_type: self.peek().token_type,
+            line: self.peek().line,
+            column: self.peek().column,
+        })
+    }
+
+    // might not be necessary
+
+    // fn error(&self, token: Token, message: &str) -> Error {
+    //     crate::t_error(token, message);
+    //     Error
+    // }
+
+    // helper functions
+    #[allow(unused)]
+    fn synchronize(&mut self) {
+        self.advance();
+
+        while !self.is_at_end() {
+            if self.previous().token_type == TokenType::Semicolon {
+                return;
+            }
+
+            match self.peek().token_type {
+                TokenType::Class => (),
+                TokenType::Func => (),
+                TokenType::Var => (),
+                TokenType::If => (),
+                TokenType::For => (),
+                TokenType::While => (),
+                TokenType::Print => (),
+                TokenType::Return => return,
+                _ => todo!(),
+            }
+
+            self.advance();
         }
     }
 
-    // helper functions
-
-    fn op_token_to_binOp(op: &token::Token) -> Result<expr::BinOp, Error> {
+    fn op_token_to_binop(op: &Token) -> Result<expr::BinaryOp, Error> {
         match op.token_type {
-            token::TokenType::EqualEqual => Ok(expr::BinOp {
+            TokenType::EqualEqual => Ok(expr::BinaryOp {
                 b_type: expr::BinOpType::EqualEqual,
                 line: op.line,
                 column: op.column,
             }),
-            token::TokenType::BangEqual => Ok(expr::BinOp {
+            TokenType::BangEqual => Ok(expr::BinaryOp {
                 b_type: expr::BinOpType::NotEqual,
                 line: op.line,
                 column: op.column,
             }),
-            token::TokenType::Less => Ok(expr::BinOp {
+            TokenType::Less => Ok(expr::BinaryOp {
                 b_type: expr::BinOpType::Less,
                 line: op.line,
                 column: op.column,
             }),
-            token::TokenType::LessEqual => Ok(expr::BinOp {
+            TokenType::LessEqual => Ok(expr::BinaryOp {
                 b_type: expr::BinOpType::LessEqual,
                 line: op.line,
                 column: op.column,
             }),
-            token::TokenType::Greater => Ok(expr::BinOp {
+            TokenType::Greater => Ok(expr::BinaryOp {
                 b_type: expr::BinOpType::Greater,
                 line: op.line,
                 column: op.column,
             }),
-            token::TokenType::GreaterEqual => Ok(expr::BinOp {
+            TokenType::GreaterEqual => Ok(expr::BinaryOp {
                 b_type: expr::BinOpType::GreaterEqual,
                 line: op.line,
                 column: op.column,
             }),
-            token::TokenType::Plus => Ok(expr::BinOp {
+            TokenType::Plus => Ok(expr::BinaryOp {
                 b_type: expr::BinOpType::Add,
                 line: op.line,
                 column: op.column,
             }),
-            token::TokenType::Minus => Ok(expr::BinOp {
+            TokenType::Minus => Ok(expr::BinaryOp {
                 b_type: expr::BinOpType::Sub,
                 line: op.line,
                 column: op.column,
             }),
-            token::TokenType::Star => Ok(expr::BinOp {
+            TokenType::Star => Ok(expr::BinaryOp {
                 b_type: expr::BinOpType::Mult,
                 line: op.line,
                 column: op.column,
             }),
-            token::TokenType::Slash => Ok(expr::BinOp {
+            TokenType::Slash => Ok(expr::BinaryOp {
                 b_type: expr::BinOpType::Div,
                 line: op.line,
                 column: op.column,
@@ -258,15 +382,15 @@ impl Parser {
         }
     }
 
-    fn op_token_to_uniOp(op: &token::Token) -> Result<expr::UnaryOp, Error> {
+    fn op_token_to_uniop(op: &Token) -> Result<expr::UnaryOp, Error> {
         match op.token_type {
-            token::TokenType::Bang => Ok(expr::UnaryOp {
-                u_type: expr::UnaryOpType::Bang,
+            TokenType::Bang => Ok(expr::UnaryOp {
+                u_type: expr::UniOpType::Bang,
                 line: op.line,
                 column: op.column,
             }),
-            token::TokenType::Minus => Ok(expr::UnaryOp {
-                u_type: expr::UnaryOpType::Minus,
+            TokenType::Minus => Ok(expr::UnaryOp {
+                u_type: expr::UniOpType::Minus,
                 line: op.line,
                 column: op.column,
             }),
@@ -278,7 +402,7 @@ impl Parser {
         }
     }
 
-    fn match_one_of(&mut self, types: Vec<token::TokenType>) -> bool {
+    fn match_one_of(&mut self, types: Vec<TokenType>) -> bool {
         for t in types.iter() {
             if self.matches(*t) {
                 return true;
@@ -287,7 +411,7 @@ impl Parser {
         false
     }
 
-    fn matches(&mut self, t: token::TokenType) -> bool {
+    fn matches(&mut self, t: TokenType) -> bool {
         if self.check(t) {
             self.advance();
             return true;
@@ -295,7 +419,7 @@ impl Parser {
         false
     }
 
-    fn advance(&mut self) -> &token::Token {
+    fn advance(&mut self) -> &Token {
         if !self.is_at_end() {
             self.current += 1
         }
@@ -303,7 +427,7 @@ impl Parser {
         self.previous()
     }
 
-    fn consume(&mut self, t: token::TokenType, message: &str) -> Result<&token::Token, Error> {
+    fn consume(&mut self, t: TokenType, message: &str) -> Result<&Token, Error> {
         if self.check(t) {
             return Ok(self.advance());
         }
@@ -314,7 +438,7 @@ impl Parser {
         })
     }
 
-    fn check(&self, t: token::TokenType) -> bool {
+    fn check(&self, t: TokenType) -> bool {
         // true if the input equals the next token
         if self.is_at_end() {
             return false;
@@ -324,14 +448,14 @@ impl Parser {
     }
 
     fn is_at_end(&self) -> bool {
-        self.peek().token_type == token::TokenType::Eof
+        self.peek().token_type == TokenType::Eof
     }
 
-    fn peek(&self) -> &token::Token {
+    fn peek(&self) -> &Token {
         &self.tokens[self.current]
     }
 
-    fn previous(&self) -> &token::Token {
+    fn previous(&self) -> &Token {
         &self.tokens[self.current - 1]
     }
 }
