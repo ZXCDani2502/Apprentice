@@ -6,6 +6,7 @@ pub enum Expr {
     Literal(Literal),
     Unary(UnaryOp, Box<Expr>),
     Binary(Box<Expr>, BinaryOp, Box<Expr>),
+    Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
     Grouping(Box<Expr>),
 }
 
