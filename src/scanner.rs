@@ -3,6 +3,7 @@ use crate::token::{Literal, Token, TokenType};
 use std::collections::HashMap;
 
 #[derive(Debug)]
+//static errors
 pub struct Error {
     //error handling is done in main if the error value in the scanner is Some and not None
     pub message: String,

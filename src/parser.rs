@@ -9,7 +9,7 @@ struct Parser {
     current: usize,
 }
 
-pub enum Error {
+pub enum SyntaxError {
     UnexpectedToken(Token),
     TokenMismatch {
         expected: TokenType,
@@ -34,15 +34,15 @@ pub enum Error {
     },
 }
 
-impl fmt::Debug for Error {
+impl fmt::Debug for SyntaxError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self {
-            Error::UnexpectedToken(token) => write!(
+            SyntaxError::UnexpectedToken(token) => write!(
                 f,
                 "[line: {}, Column: {}] Unexpected token {:?} found for this place",
                 token.line, token.column, token
             ),
-            Error::TokenMismatch {
+            SyntaxError::TokenMismatch {
                 expected,
                 found,
                 maybe_err,
@@ -57,7 +57,7 @@ impl fmt::Debug for Error {
                 }
                 fmt::Result::Ok(())
             }
-            Error::InvalidTokenInBinaryOp {
+            SyntaxError::InvalidTokenInBinaryOp {
                 token_type,
                 line,
                 column,
@@ -66,7 +66,7 @@ impl fmt::Debug for Error {
                 "[line: {}, Column: {}] Invalid Binary Operator: {:?}",
                 line, column, token_type
             ),
-            Error::InvalidTokenInUnaryOp {
+            SyntaxError::InvalidTokenInUnaryOp {
                 token_type,
                 line,
                 column,
@@ -75,7 +75,7 @@ impl fmt::Debug for Error {
                 "[line: {}, Column: {}] Invalid Unary Operator: {:?}",
                 line, column, token_type
             ),
-            Error::ExpectedExpression {
+            SyntaxError::ExpectedExpression {
                 token_type,
                 line,
                 column,
@@ -105,7 +105,7 @@ primary        = NUMBER | STRING | "true" | "false" | "null"
 */
 
 // function that allows external usage of the parser
-pub fn parse(tokens: Vec<Token>) -> Result<Expr, Error> {
+pub fn parse(tokens: Vec<Token>) -> Result<Expr, SyntaxError> {
     let mut p = Parser {
         tokens,
         ..Default::default()
@@ -117,7 +117,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr, Error> {
             // should be the end of the file, if it isn't the parser got stuck
             if !p.is_at_end() {
                 let token = &p.tokens[p.current];
-                Err(Error::UnexpectedToken(token.clone()))
+                Err(SyntaxError::UnexpectedToken(token.clone()))
             } else {
                 Ok(result)
             }
@@ -127,7 +127,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr, Error> {
 }
 
 impl Parser {
-    pub fn parse(&mut self) -> Result<Expr, Error> {
+    pub fn parse(&mut self) -> Result<Expr, SyntaxError> {
         // let ex = self.expression();
         // if ex.is_ok() {
         //     return ex;
@@ -138,11 +138,11 @@ impl Parser {
         self.expression()
     }
 
-    pub fn expression(&mut self) -> Result<Expr, Error> {
+    pub fn expression(&mut self) -> Result<Expr, SyntaxError> {
         self.equality()
     }
 
-    pub fn equality(&mut self) -> Result<Expr, Error> {
+    pub fn equality(&mut self) -> Result<Expr, SyntaxError> {
         let mut expr: Expr = self.comparison()?;
 
         while self.match_one_of(vec![TokenType::EqualEqual, TokenType::BangEqual]) {
@@ -162,7 +162,7 @@ impl Parser {
         Ok(expr)
     }
 
-    pub fn comparison(&mut self) -> Result<Expr, Error> {
+    pub fn comparison(&mut self) -> Result<Expr, SyntaxError> {
         let mut expr: Expr = self.term()?;
 
         while self.match_one_of(vec![
@@ -187,7 +187,7 @@ impl Parser {
         Ok(expr)
     }
 
-    pub fn term(&mut self) -> Result<Expr, Error> {
+    pub fn term(&mut self) -> Result<Expr, SyntaxError> {
         let mut expr: Expr = self.factor()?;
 
         while self.match_one_of(vec![TokenType::Plus, TokenType::Minus]) {
@@ -207,7 +207,7 @@ impl Parser {
         Ok(expr)
     }
 
-    pub fn factor(&mut self) -> Result<Expr, Error> {
+    pub fn factor(&mut self) -> Result<Expr, SyntaxError> {
         let mut expr: Expr = self.unary()?;
 
         while self.match_one_of(vec![TokenType::Star, TokenType::Slash]) {
@@ -227,7 +227,7 @@ impl Parser {
         Ok(expr)
     }
 
-    pub fn unary(&mut self) -> Result<Expr, Error> {
+    pub fn unary(&mut self) -> Result<Expr, SyntaxError> {
         while self.match_one_of(vec![TokenType::Minus, TokenType::Bang]) {
             let operator: Token = self.previous().clone();
             let right = Box::new(self.unary()?); // might change to not allow -- or !!
@@ -245,7 +245,7 @@ impl Parser {
         self.primary()
     }
 
-    pub fn primary(&mut self) -> Result<Expr, Error> {
+    pub fn primary(&mut self) -> Result<Expr, SyntaxError> {
         if self.matches(TokenType::False) {
             return Ok(Expr::Literal(Literal::False));
         }
@@ -282,7 +282,7 @@ impl Parser {
             self.consume(TokenType::RightParen, "Expected ')' after expression")?;
             return Ok(Expr::Grouping(Box::new(expr)));
         }
-        Err(Error::ExpectedExpression {
+        Err(SyntaxError::ExpectedExpression {
             token_type: self.peek().token_type,
             line: self.peek().line,
             column: self.peek().column,
@@ -322,7 +322,7 @@ impl Parser {
         }
     }
 
-    fn op_token_to_binop(op: &Token) -> Result<expr::BinaryOp, Error> {
+    fn op_token_to_binop(op: &Token) -> Result<expr::BinaryOp, SyntaxError> {
         match op.token_type {
             TokenType::EqualEqual => Ok(expr::BinaryOp {
                 b_type: expr::BinOpType::EqualEqual,
@@ -374,7 +374,7 @@ impl Parser {
                 line: op.line,
                 column: op.column,
             }),
-            _ => Err(Error::InvalidTokenInBinaryOp {
+            _ => Err(SyntaxError::InvalidTokenInBinaryOp {
                 token_type: op.token_type,
                 line: op.line,
                 column: op.column,
@@ -382,7 +382,7 @@ impl Parser {
         }
     }
 
-    fn op_token_to_uniop(op: &Token) -> Result<expr::UnaryOp, Error> {
+    fn op_token_to_uniop(op: &Token) -> Result<expr::UnaryOp, SyntaxError> {
         match op.token_type {
             TokenType::Bang => Ok(expr::UnaryOp {
                 u_type: expr::UniOpType::Bang,
@@ -394,7 +394,7 @@ impl Parser {
                 line: op.line,
                 column: op.column,
             }),
-            _ => Err(Error::InvalidTokenInUnaryOp {
+            _ => Err(SyntaxError::InvalidTokenInUnaryOp {
                 token_type: op.token_type,
                 line: op.line,
                 column: op.column,
@@ -427,11 +427,11 @@ impl Parser {
         self.previous()
     }
 
-    fn consume(&mut self, t: TokenType, message: &str) -> Result<&Token, Error> {
+    fn consume(&mut self, t: TokenType, message: &str) -> Result<&Token, SyntaxError> {
         if self.check(t) {
             return Ok(self.advance());
         }
-        Err(Error::TokenMismatch {
+        Err(SyntaxError::TokenMismatch {
             expected: t,
             found: self.peek().clone(),
             maybe_err: Some(message.into()),
