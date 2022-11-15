@@ -1,5 +1,7 @@
 #![allow(unused)]
-use crate::expr::{self, BinOpType, Expr, Literal, UniOpType};
+use std::fmt;
+
+use crate::exprstmt::{self, BinOpType, Expr, Literal, Stmt, UniOpType};
 
 #[derive(Clone, Debug)]
 pub enum Value {
@@ -9,10 +11,49 @@ pub enum Value {
     Null,
 }
 
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Number(n) => write!(f, "{}", n),
+            Value::String(s) => write!(f, "{}", s.clone()),
+            Value::Bool(b) => write!(f, "{}", b),
+            Value::Null => write!(f, "null"),
+        }
+    }
+}
+
 pub struct Interpreter {}
 
+pub fn interpret(stmts: &Vec<Stmt>) -> Result<(), String> {
+    let mut i = Interpreter {};
+    i.interpret(stmts)
+}
+
 impl Interpreter {
-    pub fn interpret_expr(&mut self, expr: &Expr) -> Result<Value, String> {
+    pub fn interpret(&mut self, stmts: &Vec<Stmt>) -> Result<(), String> {
+        for stmt in stmts {
+            self.execute(stmt)?;
+        }
+        Ok(())
+    }
+
+    fn execute(&mut self, stmt: &Stmt) -> Result<(), String> {
+        match stmt {
+            Stmt::Print(e) => match self.interpret_expr(e) {
+                Ok(v) => {
+                    println!("{v}");
+                    Ok(())
+                }
+                Err(err) => Err(err),
+            },
+            Stmt::Expression(e) => match self.interpret_expr(e) {
+                Ok(_) => Ok(()),
+                Err(err) => Err(err),
+            },
+        }
+    }
+
+    fn interpret_expr(&mut self, expr: &Expr) -> Result<Value, String> {
         match expr {
             Expr::Literal(lit) => Ok(self.interpret_literal(lit)),
             Expr::Grouping(e) => self.interpret_expr(e),
@@ -33,7 +74,7 @@ impl Interpreter {
         }
     }
 
-    fn interpret_unary(&mut self, op: expr::UnaryOp, e: &Expr) -> Result<Value, String> {
+    fn interpret_unary(&mut self, op: exprstmt::UnaryOp, e: &Expr) -> Result<Value, String> {
         let val = self.interpret_expr(e)?;
 
         match (op.u_type, &val) {
@@ -47,7 +88,7 @@ impl Interpreter {
 
     fn interpret_binary(
         &mut self,
-        op: expr::BinaryOp,
+        op: exprstmt::BinaryOp,
         left: &Expr,
         right: &Expr,
     ) -> Result<Value, String> {

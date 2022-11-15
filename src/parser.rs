@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::expr::{self, Expr, Literal};
+use crate::exprstmt::{self, Expr, Literal, Stmt};
 use crate::token::{self, Token, TokenType};
 
 #[derive(Default)]
@@ -105,7 +105,7 @@ primary        = NUMBER | STRING | "true" | "false" | "null"
 */
 
 // function that allows external usage of the parser
-pub fn parse(tokens: Vec<Token>) -> Result<Expr, SyntaxError> {
+pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, SyntaxError> {
     let mut p = Parser {
         tokens,
         ..Default::default()
@@ -127,15 +127,35 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr, SyntaxError> {
 }
 
 impl Parser {
-    pub fn parse(&mut self) -> Result<Expr, SyntaxError> {
-        // let ex = self.expression();
-        // if ex.is_ok() {
-        //     return ex;
-        // } else {
-        //     ex
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, SyntaxError> {
+        let mut statements: Vec<Stmt> = vec![];
+        while self.is_at_end() {
+            statements.push(self.statement()?);
+        }
+
+        Ok(statements)
+    }
+
+    fn statement(&mut self) -> Result<Stmt, SyntaxError> {
+        if self.matches(TokenType::Print) {
+            return self.printStatement();
+        }
+        // else if self.matches(TokenType::Var) {
+        //     return declareVariable();
         // }
-        // that's the same as
-        self.expression()
+        self.expressionStatement()
+    }
+
+    fn printStatement(&mut self) -> Result<Stmt, SyntaxError> {
+        let val = self.expression();
+        self.consume(TokenType::Semicolon, "Expected ';'")?;
+        Ok(Stmt::Print(val.unwrap()))
+    }
+
+    fn expressionStatement(&mut self) -> Result<Stmt, SyntaxError> {
+        let val = self.expression();
+        self.consume(TokenType::Semicolon, "Expected ';'")?;
+        Ok(Stmt::Expression(val.unwrap()))
     }
 
     pub fn expression(&mut self) -> Result<Expr, SyntaxError> {
@@ -322,55 +342,55 @@ impl Parser {
         }
     }
 
-    fn op_token_to_binop(op: &Token) -> Result<expr::BinaryOp, SyntaxError> {
+    fn op_token_to_binop(op: &Token) -> Result<exprstmt::BinaryOp, SyntaxError> {
         match op.token_type {
-            TokenType::EqualEqual => Ok(expr::BinaryOp {
-                b_type: expr::BinOpType::EqualEqual,
+            TokenType::EqualEqual => Ok(exprstmt::BinaryOp {
+                b_type: exprstmt::BinOpType::EqualEqual,
                 line: op.line,
                 column: op.column,
             }),
-            TokenType::BangEqual => Ok(expr::BinaryOp {
-                b_type: expr::BinOpType::NotEqual,
+            TokenType::BangEqual => Ok(exprstmt::BinaryOp {
+                b_type: exprstmt::BinOpType::NotEqual,
                 line: op.line,
                 column: op.column,
             }),
-            TokenType::Less => Ok(expr::BinaryOp {
-                b_type: expr::BinOpType::Less,
+            TokenType::Less => Ok(exprstmt::BinaryOp {
+                b_type: exprstmt::BinOpType::Less,
                 line: op.line,
                 column: op.column,
             }),
-            TokenType::LessEqual => Ok(expr::BinaryOp {
-                b_type: expr::BinOpType::LessEqual,
+            TokenType::LessEqual => Ok(exprstmt::BinaryOp {
+                b_type: exprstmt::BinOpType::LessEqual,
                 line: op.line,
                 column: op.column,
             }),
-            TokenType::Greater => Ok(expr::BinaryOp {
-                b_type: expr::BinOpType::Greater,
+            TokenType::Greater => Ok(exprstmt::BinaryOp {
+                b_type: exprstmt::BinOpType::Greater,
                 line: op.line,
                 column: op.column,
             }),
-            TokenType::GreaterEqual => Ok(expr::BinaryOp {
-                b_type: expr::BinOpType::GreaterEqual,
+            TokenType::GreaterEqual => Ok(exprstmt::BinaryOp {
+                b_type: exprstmt::BinOpType::GreaterEqual,
                 line: op.line,
                 column: op.column,
             }),
-            TokenType::Plus => Ok(expr::BinaryOp {
-                b_type: expr::BinOpType::Add,
+            TokenType::Plus => Ok(exprstmt::BinaryOp {
+                b_type: exprstmt::BinOpType::Add,
                 line: op.line,
                 column: op.column,
             }),
-            TokenType::Minus => Ok(expr::BinaryOp {
-                b_type: expr::BinOpType::Sub,
+            TokenType::Minus => Ok(exprstmt::BinaryOp {
+                b_type: exprstmt::BinOpType::Sub,
                 line: op.line,
                 column: op.column,
             }),
-            TokenType::Star => Ok(expr::BinaryOp {
-                b_type: expr::BinOpType::Mult,
+            TokenType::Star => Ok(exprstmt::BinaryOp {
+                b_type: exprstmt::BinOpType::Mult,
                 line: op.line,
                 column: op.column,
             }),
-            TokenType::Slash => Ok(expr::BinaryOp {
-                b_type: expr::BinOpType::Div,
+            TokenType::Slash => Ok(exprstmt::BinaryOp {
+                b_type: exprstmt::BinOpType::Div,
                 line: op.line,
                 column: op.column,
             }),
@@ -382,15 +402,15 @@ impl Parser {
         }
     }
 
-    fn op_token_to_uniop(op: &Token) -> Result<expr::UnaryOp, SyntaxError> {
+    fn op_token_to_uniop(op: &Token) -> Result<exprstmt::UnaryOp, SyntaxError> {
         match op.token_type {
-            TokenType::Bang => Ok(expr::UnaryOp {
-                u_type: expr::UniOpType::Bang,
+            TokenType::Bang => Ok(exprstmt::UnaryOp {
+                u_type: exprstmt::UniOpType::Bang,
                 line: op.line,
                 column: op.column,
             }),
-            TokenType::Minus => Ok(expr::UnaryOp {
-                u_type: expr::UniOpType::Minus,
+            TokenType::Minus => Ok(exprstmt::UnaryOp {
+                u_type: exprstmt::UniOpType::Minus,
                 line: op.line,
                 column: op.column,
             }),

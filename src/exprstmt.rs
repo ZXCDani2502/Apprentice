@@ -1,5 +1,8 @@
 use std::fmt;
 
+// -----------
+// Expressions
+// -----------
 #[derive(Debug, Clone)]
 pub enum Expr {
     //This(SourceLocation),
@@ -93,4 +96,14 @@ impl fmt::Display for Literal {
             Literal::Null => write!(f, "null"),
         }
     }
+}
+
+// ----------
+// Statements
+// ----------
+
+#[derive(Debug, Clone)]
+pub enum Stmt {
+    Expression(Expr),
+    Print(Expr),
 }

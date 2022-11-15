@@ -2,7 +2,7 @@ use crate::token::Token;
 use crate::utils::*;
 use std::fs;
 
-mod expr;
+mod exprstmt;
 mod interpreter;
 mod parser;
 mod scanner;
@@ -14,12 +14,14 @@ fn main() {
 }
 
 fn run(source: String) {
+    let mut had_error = false;
     //temporary way of creating the scanner
     let code = fs::read_to_string(format!("src/tests/{}.aprn", source)).expect("can't read file");
     let result = scanner::scan(code);
 
     let mut tokens: Vec<Token> = Vec::new();
     if let Err(e) = result {
+        had_error = true;
         error(e.line, e.column, e.message.as_str());
     } else {
         tokens = result.unwrap();
@@ -27,12 +29,25 @@ fn run(source: String) {
 
     print_token::pr(&tokens);
 
-    let expr_or_err = parser::parse(tokens);
+    let result = parser::parse(tokens);
+    let statements;
 
-    match expr_or_err {
-        Ok(expr) => print_ast::pr(expr.clone()),
-        Err(err) => println!("{err:?}"),
+    match result {
+        Ok(stmts) => {
+            statements = stmts.clone();
+            //print_ast::pr(todo!());
+        }
+        Err(err) => {
+            had_error = true;
+            println!("{err:?}")
+        }
     }
+
+    if had_error {
+        return;
+    }
+
+    //interpreter::interpret(statements)
 }
 
 fn error(line: usize, column: i64, message: &str) {
