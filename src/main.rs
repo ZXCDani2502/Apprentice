@@ -1,12 +1,10 @@
-use crate::token::Token;
-use crate::utils::*;
+use crate::scanner::token::Token;
+// use crate::utils::*;
 use std::fs;
 
-mod exprstmt;
 mod interpreter;
 mod parser;
 mod scanner;
-mod token;
 pub mod utils;
 
 fn main() {
@@ -17,37 +15,41 @@ fn run(source: String) {
     let mut had_error = false;
     //temporary way of creating the scanner
     let code = fs::read_to_string(format!("src/tests/{}.aprn", source)).expect("can't read file");
-    let result = scanner::scan(code);
+    let scan_result = scanner::scan(code);
 
     let mut tokens: Vec<Token> = Vec::new();
-    if let Err(e) = result {
+    if let Err(e) = scan_result {
         had_error = true;
         error(e.line, e.column, e.message.as_str());
     } else {
-        tokens = result.unwrap();
+        tokens = scan_result.unwrap();
     }
 
-    print_token::pr(&tokens);
+    // print_token::pr(&tokens);
 
-    let result = parser::parse(tokens);
-    let statements;
+    let parse_result = parser::parse(tokens);
 
-    match result {
+    let ast = match parse_result {
         Ok(stmts) => {
-            statements = stmts.clone();
+            stmts
             //print_ast::pr(todo!());
         }
         Err(err) => {
             had_error = true;
-            println!("{err:?}")
+            println!("{err:?}");
+            vec![]
         }
-    }
+    };
 
     if had_error {
         return;
     }
 
-    //interpreter::interpret(statements)
+    let runtime_result = interpreter::interpret(&ast);
+    match runtime_result {
+        Ok(_) => return,
+        Err(s) => println!("{s:?}"),
+    }
 }
 
 fn error(line: usize, column: i64, message: &str) {

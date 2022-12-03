@@ -1,4 +1,4 @@
-use crate::exprstmt::Expr;
+use crate::parser::exprstmt::Expr;
 
 pub fn pr(expr: Expr) {
     println!("{}", format(expr));
@@ -11,6 +11,8 @@ fn format(expr: Expr) -> String {
         Expr::Binary(left, op, right) => parenthesize_bin(format!("{}", op.b_type), left, right),
         Expr::Ternary(bool, if_, else_) => parenthesize_tri(bool, if_, else_),
         Expr::Literal(value) => return format!("{value}"),
+        Expr::Variable(name) => todo!(),
+        Expr::Assignment(sym, expr) => todo!(),
     }
 }
 

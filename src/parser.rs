@@ -1,7 +1,128 @@
 use std::fmt;
 
-use crate::exprstmt::{self, Expr, Literal, Stmt};
-use crate::token::{self, Token, TokenType};
+use crate::parser::exprstmt::{Expr, Literal, Stmt, Symbol};
+use crate::scanner::token::{self, Token, TokenType};
+
+pub mod exprstmt {
+    use std::fmt;
+
+    #[derive(Debug, Eq, PartialEq, Hash, Clone)]
+    pub struct Symbol {
+        pub name: String,
+        pub line: usize,
+        pub column: i64,
+    }
+
+    // -----------
+    // Expressions
+    // -----------
+    #[derive(Debug, Clone)]
+    pub enum Expr {
+        //This(SourceLocation),
+        Literal(Literal),
+        Unary(UnaryOp, Box<Expr>),
+        Binary(Box<Expr>, BinaryOp, Box<Expr>),
+        Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
+        Assignment(Symbol, Box<Expr>),
+        Grouping(Box<Expr>),
+        Variable(Symbol),
+    }
+
+    // #[derive(Debug, Copy, Clone)]
+    // pub struct SourceLocation {
+    //     pub line: usize,
+    //     pub col: i64,
+    // }
+
+    #[derive(Debug, Copy, Clone)]
+    pub struct UnaryOp {
+        pub u_type: UniOpType,
+        pub line: usize,
+        pub column: i64,
+    }
+
+    #[derive(Debug, Copy, Clone)]
+    pub enum UniOpType {
+        Minus,
+        Bang,
+    }
+    impl fmt::Display for UniOpType {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match &self {
+                UniOpType::Minus => write!(f, "-"),
+                UniOpType::Bang => write!(f, "!"),
+            }
+        }
+    }
+
+    #[derive(Debug, Copy, Clone)]
+    pub struct BinaryOp {
+        pub b_type: BinOpType,
+        pub line: usize,
+        pub column: i64,
+    }
+
+    #[derive(Debug, Copy, Clone)]
+    pub enum BinOpType {
+        EqualEqual,
+        NotEqual,
+        Less,
+        LessEqual,
+        Greater,
+        GreaterEqual,
+        Add,
+        Sub,
+        Mult,
+        Div,
+    }
+    impl fmt::Display for BinOpType {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match &self {
+                BinOpType::EqualEqual => write!(f, "=="),
+                BinOpType::NotEqual => write!(f, "!="),
+                BinOpType::Less => write!(f, "<"),
+                BinOpType::LessEqual => write!(f, "<="),
+                BinOpType::Greater => write!(f, ">"),
+                BinOpType::GreaterEqual => write!(f, ">="),
+                BinOpType::Add => write!(f, "+"),
+                BinOpType::Sub => write!(f, "-"),
+                BinOpType::Mult => write!(f, "*"),
+                BinOpType::Div => write!(f, "/"),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum Literal {
+        Number(f64),
+        String(String),
+        True,
+        False,
+        Null,
+    }
+    impl fmt::Display for Literal {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match &self {
+                Literal::Number(n) => write!(f, "{n}"),
+                Literal::String(s) => write!(f, "{s}"),
+                Literal::True => write!(f, "true"),
+                Literal::False => write!(f, "false"),
+                Literal::Null => write!(f, "null"),
+            }
+        }
+    }
+
+    // ----------
+    // Statements
+    // ----------
+
+    #[derive(Debug, Clone)]
+    pub enum Stmt {
+        Expression(Expr),
+        Print(Expr),
+        VarDeclaration(Symbol, Option<Expr>),
+    }
+}
 
 #[derive(Default)]
 struct Parser {
@@ -32,6 +153,11 @@ pub enum SyntaxError {
         line: usize,
         column: i64,
     },
+    InvalidAssignment {
+        // the assignment target is invalid
+        line: usize,
+        column: i64,
+    },
 }
 
 impl fmt::Debug for SyntaxError {
@@ -39,7 +165,7 @@ impl fmt::Debug for SyntaxError {
         match &self {
             SyntaxError::UnexpectedToken(token) => write!(
                 f,
-                "[line: {}, Column: {}] Unexpected token {:?} found for this place",
+                "[line: {}, Column: {}] Unexpected {:?} found for this place",
                 token.line, token.column, token
             ),
             SyntaxError::TokenMismatch {
@@ -84,6 +210,13 @@ impl fmt::Debug for SyntaxError {
                 "[line: {}, Column: {}] Expected Expression, found {:?}",
                 line, column, token_type,
             ),
+            SyntaxError::InvalidAssignment { line, column } => {
+                write!(
+                    f,
+                    "[line: {}, Column: {}] Assignment target is Invalide",
+                    line, column
+                )
+            }
         }
     }
 }
@@ -92,15 +225,33 @@ impl fmt::Debug for SyntaxError {
 
 Recursive descent using this grammar
 
-expression     = equality ;
-equality       = comparison ( ( "!=" | "==" ) comparison )* ;
-comparison     = term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-term           = factor ( ( "-" | "+" ) factor )* ;
-factor         = unary ( ( "/" | "*" ) unary )* ;
-unary          = ( "!" | "-" ) unary
-               | primary ;
-primary        = NUMBER | STRING | "true" | "false" | "null"
-               | "(" expression ")" ;
+program      = declaration* EOF ;
+
+declaration  = varDecl
+             | statement
+
+varDecl      = "var" IDENTIFIER ( "=" expression )? ";"
+
+statement    = printStmt
+             | exprStmt
+
+printStmt    = "print" expression ";"
+varStmt      = "var"
+funcStmt     = "func"
+classStmt	 = "class"
+exprStmt     = expression ";" ;
+
+expression   = equality ;
+equality     = comparison ( ( "!=" | "==" ) comparison )* ;
+comparison   = term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+term         = factor ( ( "-" | "+" ) factor )* ;
+factor       = unary ( ( "/" | "*" ) unary )* ;
+unary        = ( "!" | "-" ) unary
+             | primary ;
+primary      = "true" | "false" | "null"
+             | NUMBER | STRING
+             | "(" expression ")"
+             | IDENTIFIER ;
 
 */
 
@@ -129,37 +280,89 @@ pub fn parse(tokens: Vec<Token>) -> Result<Vec<Stmt>, SyntaxError> {
 impl Parser {
     pub fn parse(&mut self) -> Result<Vec<Stmt>, SyntaxError> {
         let mut statements: Vec<Stmt> = vec![];
-        while self.is_at_end() {
-            statements.push(self.statement()?);
+        while !self.is_at_end() {
+            statements.push(self.declaration()?);
         }
 
         Ok(statements)
     }
 
+    fn declaration(&mut self) -> Result<Stmt, SyntaxError> {
+        if self.matches(TokenType::Var) {
+            return self.var_declaration();
+        }
+        // if there's an error, synchronize()
+        self.statement()
+    }
+
+    fn var_declaration(&mut self) -> Result<Stmt, SyntaxError> {
+        let name = self
+            .consume(TokenType::Identifier, "Expected variable name.")?
+            .clone();
+
+        let initializer = if self.matches(TokenType::Equal) {
+            Some(self.expression()?)
+        } else {
+            None
+        };
+
+        self.consume(
+            TokenType::Semicolon,
+            "Expected ';' after variable declaration.",
+        );
+        Ok(Stmt::VarDeclaration(
+            Symbol {
+                name: String::from_utf8(name.lexeme).unwrap(),
+                line: name.line,
+                column: name.column,
+            },
+            initializer,
+        ))
+    }
+
     fn statement(&mut self) -> Result<Stmt, SyntaxError> {
         if self.matches(TokenType::Print) {
-            return self.printStatement();
+            return self.print_statement();
         }
         // else if self.matches(TokenType::Var) {
         //     return declareVariable();
         // }
-        self.expressionStatement()
+        self.expression_statement()
     }
 
-    fn printStatement(&mut self) -> Result<Stmt, SyntaxError> {
+    fn print_statement(&mut self) -> Result<Stmt, SyntaxError> {
         let val = self.expression();
         self.consume(TokenType::Semicolon, "Expected ';'")?;
         Ok(Stmt::Print(val.unwrap()))
     }
 
-    fn expressionStatement(&mut self) -> Result<Stmt, SyntaxError> {
+    fn expression_statement(&mut self) -> Result<Stmt, SyntaxError> {
         let val = self.expression();
         self.consume(TokenType::Semicolon, "Expected ';'")?;
         Ok(Stmt::Expression(val.unwrap()))
     }
 
     pub fn expression(&mut self) -> Result<Expr, SyntaxError> {
-        self.equality()
+        self.assignment()
+    }
+
+    pub fn assignment(&mut self) -> Result<Expr, SyntaxError> {
+        let expr = self.equality()?;
+
+        if self.matches(TokenType::Equal) {
+            let equals = self.previous().clone();
+            let value = self.assignment()?;
+
+            if let Expr::Variable(sym) = &expr {
+                return Ok(Expr::Assignment(sym.clone(), Box::new(value)));
+            } else {
+                return Err(SyntaxError::InvalidAssignment {
+                    line: equals.line,
+                    column: equals.column,
+                });
+            }
+        }
+        Ok(expr)
     }
 
     pub fn equality(&mut self) -> Result<Expr, SyntaxError> {
@@ -295,6 +498,24 @@ impl Parser {
                     l
                 ),
                 None => panic!("parser internal error: when parsing string, found no literal"),
+            }
+        }
+        if self.matches(TokenType::Identifier) {
+            match &self.previous().literal {
+                Some(token::Literal::Identifier(s)) => {
+                    return Ok(Expr::Variable(Symbol {
+                        name: s.clone(),
+                        line: self.previous().line,
+                        column: self.previous().column,
+                    }))
+                }
+                Some(l) => panic!(
+                    "parser internal error: when parsing identifier, found literal {:?}",
+                    l
+                ),
+                None => {
+                    panic!("parser internal error: when parsing identifier, found no literal")
+                }
             }
         }
         if self.matches(TokenType::LeftParen) {

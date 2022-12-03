@@ -1,31 +1,70 @@
 #![allow(unused)]
-use std::fmt;
 
-use crate::exprstmt::{self, BinOpType, Expr, Literal, Stmt, UniOpType};
+use crate::interpreter::environment::{Environment, Value};
+use crate::parser::exprstmt::{self, BinOpType, Expr, Literal, Stmt, UniOpType};
 
-#[derive(Clone, Debug)]
-pub enum Value {
-    Number(f64),
-    String(String),
-    Bool(bool),
-    Null,
-}
+mod environment {
+    use std::collections::HashMap;
+    use std::fmt;
 
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Value::Number(n) => write!(f, "{}", n),
-            Value::String(s) => write!(f, "{}", s.clone()),
-            Value::Bool(b) => write!(f, "{}", b),
-            Value::Null => write!(f, "null"),
+    use crate::parser::exprstmt::Symbol;
+    #[derive(Clone, Debug, Default)]
+    pub struct Environment {
+        pub values: HashMap<String, Option<Value>>,
+    }
+
+    impl Environment {
+        pub fn define(&mut self, sym: Symbol, value: Option<Value>) {
+            self.values.insert(sym.name, value);
+        }
+
+        pub fn assign(&mut self, sym: Symbol, val: &Value) -> Result<(), String> {
+            if self.values.contains_key(&sym.name) {
+                self.define(sym, Some(val.clone()));
+                return Ok(());
+            }
+            Err(format!("attempted to assign to an undefined variable"))
+        }
+
+        pub fn get(&self, name: &String) -> Result<Value, String> {
+            if self.values.contains_key(name) {
+                Ok(self.values[name].clone().unwrap()) //might not be correct
+            } else {
+                Err(format!("Undefined variable {}", name))
+            }
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    pub enum Value {
+        Number(f64),
+        String(String),
+        Bool(bool),
+        Null,
+    }
+
+    impl fmt::Display for Value {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            match self {
+                Value::Number(n) => write!(f, "{}", n),
+                Value::String(s) => write!(f, "{}", s.clone()),
+                Value::Bool(b) => write!(f, "{}", b),
+                Value::Null => write!(f, "null"),
+            }
         }
     }
 }
 
-pub struct Interpreter {}
+pub struct Interpreter {
+    env: Environment,
+}
 
 pub fn interpret(stmts: &Vec<Stmt>) -> Result<(), String> {
-    let mut i = Interpreter {};
+    let mut i = Interpreter {
+        env: Environment {
+            ..Default::default()
+        },
+    };
     i.interpret(stmts)
 }
 
@@ -50,6 +89,14 @@ impl Interpreter {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             },
+            Stmt::VarDeclaration(s, e) => {
+                let val = match e {
+                    Some(expr) => Some(self.interpret_expr(expr)?),
+                    None => None,
+                };
+                self.env.define(s.clone(), val);
+                Ok(())
+            }
         }
     }
 
@@ -59,8 +106,13 @@ impl Interpreter {
             Expr::Grouping(e) => self.interpret_expr(e),
             Expr::Unary(op, e) => self.interpret_unary(*op, e),
             Expr::Binary(left, op, right) => self.interpret_binary(*op, left, right),
-
-            _ => todo!(),
+            Expr::Ternary(left, middle, right) => todo!(),
+            Expr::Variable(sym) => self.env.get(&sym.name),
+            Expr::Assignment(sym, expr) => {
+                let val = self.interpret_expr(expr)?;
+                self.env.assign(sym.clone(), &val)?;
+                Ok(val)
+            }
         }
     }
 
